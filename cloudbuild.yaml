@@ -1,0 +1,38 @@
+steps:
+  - id: 'tf-init'
+    name: 'hashicorp/terraform:latest'
+    entrypoint: 'sh'
+    args: 
+    - '-c'
+    - | 
+        terraform init -backend-config="bucket=$_TF_STATE_BUCKET_NAME" -backend-config="prefix=terraform/state"
+  # - timeout: "600s"
+
+  - id: 'tf-plan'
+    name: 'hashicorp/terraform:latest'
+    waitFor: 
+    - 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - "-c"
+      - 'pwd'
+      - 'ls -la'
+      - |
+          terraform plan \
+          -var="project-id=$PROJECT_ID" \
+          -out=PLAN
+  # - timeout: "600s"
+
+  - id: 'tf-apply'
+    name: 'hashicorp/terraform:latest'
+    entrypoint: 'sh'
+    args:
+      - "-c"
+      - |
+          terraform apply --auto-approve \
+          -var="project-id=$PROJECT_ID"
+  # - timeout: "600s"
+
+
+options:
+  logging: CLOUD_LOGGING_ONLY
