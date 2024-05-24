@@ -9,10 +9,10 @@ gcp_service_list = [
   "cloudresourcemanager.googleapis.com"
 ]
 
-region = "europe-west1"
+region = "us-west4"
 
-subnet-cidr = "10.1.0.0/16"
+subnet-cidr = "10.0.2.0/28"
 
-subnet-region = "europe-west1"
+subnet-region = "us-west4-a"
 
-subnet-zone = "europe-west1-b"
+subnet-zone = "us-west4-a"

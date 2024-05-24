@@ -1,6 +1,6 @@
 resource "google_compute_instance" "minikube-instance" {
   name         = "minikube-instance"
-  machine_type = "e2-medium"
+  machine_type = "n1-standard-8" 
   zone         = var.subnet-zone
 
   boot_disk {
@@ -11,68 +11,74 @@ resource "google_compute_instance" "minikube-instance" {
   }
 
   network_interface {
-    network    = google_compute_network.marketplace-vpc.name
-    subnetwork = google_compute_subnetwork.marketplace-subnet1.name
+    network    = google_compute_network.minikube-network.name
+    subnetwork = google_compute_subnetwork.minikube-subnet.name
 
   }
 
 
 
   metadata_startup_script = <<-EOT
-           #!/bin/bash
+#!/bin/bash
 
-LOG_FILE="/var/log/minikube-install.log"
+#!/bin/bash
 
-# Function to log messages
-log() {
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+# Log file path
+LOG_FILE="$HOME/minikube-startup.log"
+# Reference file to check if Minikube has been installed
+REFERENCE_FILE="$HOME/.minikube_installed"
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" &>/dev/null
 }
 
-# Check if Minikube is already installed
-if command -v minikube &> /dev/null; then
-    log "Minikube is already installed. Exiting script."
-    exit 0
-else
-    log "Minikube not found. Proceeding with installation."
+# Redirect stdout and stderr to the log file
+exec > >(tee -a ${LOG_FILE}) 2>&1
+
+echo "Starting startup script at $(date)"
+
+# Check if Docker is installed
+if ! command_exists docker; then
+    echo "Docker is not installed. Installing Docker..."
+    sudo apt-get update
+    sudo apt-get install -y docker.io
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    sudo usermod -aG docker $(whoami)
+    echo "Docker installation completed."
+    
+    # Re-execute the script with the new group
+    exec sg docker "$0"
 fi
 
-# Update and install prerequisites
-log "Updating package list and installing prerequisites..."
-sudo apt-get update -y | tee -a "$LOG_FILE"
-sudo apt-get install -y curl apt-transport-https virtualbox virtualbox-ext-pack | tee -a "$LOG_FILE"
+# Check if Minikube has been installed before using the reference file
+if [ ! -f "$REFERENCE_FILE" ]; then
+    echo "Minikube is not installed. Installing Minikube..."
+    curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    sudo install minikube-linux-amd64 /usr/local/bin/minikube
+    rm minikube-linux-amd64
+    echo "Minikube installation completed."
 
-# Download and install Minikube
-log "Downloading and installing Minikube..."
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 | tee -a "$LOG_FILE"
-sudo install minikube /usr/local/bin/ | tee -a "$LOG_FILE"
-
-# Download and install kubectl
-log "Downloading and installing kubectl..."
-curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" | tee -a "$LOG_FILE"
-chmod +x kubectl | tee -a "$LOG_FILE"
-sudo mv kubectl /usr/local/bin/ | tee -a "$LOG_FILE"
-
-# Clean up
-log "Cleaning up..."
-rm -f minikube | tee -a "$LOG_FILE"
-
-# Verify installation
-log "Verifying Minikube installation..."
-if minikube version &> /dev/null; then
-    log "Minikube installed successfully."
+    # Create the reference file to indicate Minikube has been installed
+    touch "$REFERENCE_FILE"
 else
-    log "Minikube installation failed."
-    exit 1
+    echo "Minikube is already installed. Skipping installation."
 fi
 
-log "Startup script completed."
+# Start Minikube with Docker driver
+echo "Starting Minikube..."
+minikube start --driver=docker
 
-        EOT
+echo "Startup script completed at $(date)"
+
+
+EOT
 }
 
 resource "google_compute_firewall" "allow-ssh-rdp-icmp" {
   name    = "allow-ssh-rdp-icmp"
-  network = google_compute_network.marketplace-vpc.name
+  network = google_compute_network.minikube-network.name
 
   allow {
     protocol = "tcp"
