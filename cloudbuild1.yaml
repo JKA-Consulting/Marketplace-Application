@@ -1,0 +1,57 @@
+steps:
+  # Step 2: Configure kubectl to use the GKE cluster
+  - id: 'configure-kubectl'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - '${_CLUSTER_NAME}'  # Name of your GKE cluster
+      - '--region=${_CLUSTER_REGION}'  # Region where the GKE cluster is located
+      - '--project=${_PROJECT_ID}'  # Google Cloud project ID
+
+  # Step 3: Apply Kubernetes manifest to deploy to the cluster
+  - id: 'deploy-to-k8s'
+    name: 'gcr.io/cloud-builders/kubectl'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/app.yaml'  # Path to your Kubernetes manifest file (adjust as needed)
+
+  # Optional: Step 4: Verify the deployment
+  - id: 'verify-deployment'
+    name: 'gcr.io/cloud-builders/kubectl'
+    args:
+      - 'get'
+      - 'pods'
+      - '--namespace=${_NAMESPACE}'  # Replace with the namespace, e.g., 'default'
+
+# Optional: Define substitutions for project ID, cluster name, region, etc.
+substitutions:
+  _GOOGLE_APPLICATION_CREDENTIALS: "path/to/your-service-account-key.json"  # Path to the service account key file
+  _PROJECT_ID: "your-project-id"  # Replace with your project ID
+  _CLUSTER_NAME: "your-cluster-name"  # Replace with your GKE cluster name
+  _CLUSTER_REGION: "your-cluster-region"  # Replace with the GKE cluster region (e.g., 'us-central1')
+  _NAMESPACE: "default"  # Namespace in your Kubernetes cluster (replace with your namespace if needed)
+
+# Optional: Timeout for the build process (e.g., 15 minutes)
+timeout: "900s"
+
+
+
+
+steps:
+  # build the container image
+- name: "gcr.io/cloud-builders/docker"
+  args: ["build", "-t", "gcr.io/project-id/image:tag", "."]
+  # push container image
+- name: "gcr.io/cloud-builders/docker"
+  args: ["push", "gcr.io/project-id/image:tag"]
+  # deploy container image to GKE
+- name: "gcr.io/cloud-builders/gke-deploy"
+  args:
+  - run
+  - --filename=kubernetes-resource-file
+  - --image=gcr.io/project-id/image:tag
+  - --location=location
+  - --cluster=cluster

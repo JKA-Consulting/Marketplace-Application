@@ -1,9 +1,24 @@
 steps:
-  - id: 'tf init'
-    name: 'hashicorp/terraform:1.0.0'
-    entrypoint: 'sh'
-    args: 
-    - '-c'
-    - | 
-        terraform init 
-  - timeout: "600s"
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/demo/demo-image', './app' ]
+  id: 'Build Docker Image'
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/demo/demo-image' ]
+  id: 'Push Docker Image'
+
+- id: 'configure-kubectl'
+  name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'container'
+    - 'clusters'
+    - 'get-credentials'
+    - '${_CLUSTER_NAME}'  # Name of your GKE cluster
+    - '--region=${_CLUSTER_REGION}'  # Region where the GKE cluster is located
+    - '--project=${_PROJECT_ID}'  # Google Cloud project ID
+
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# us-central1-docker.pkg.dev/jkaconsulting/demo
